@@ -1,0 +1,16 @@
+mr-quack-your-ai-doctor/
+├─ App.js
+├─ package.json
+├─ app.json
+├─ README.md
+├─ .gitignore
+├─ /assets
+│   ├─ icon.png
+│   └─ splash.png
+└─ /src
+   ├─ screens/
+   │  ├─ HomeScreen.js
+   │  ├─ SymptomScreen.js
+   │  └─ PrescriptionScreen.js
+   └─ utils/
+      └─ admob.js
