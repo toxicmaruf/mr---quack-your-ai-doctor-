@@ -1,0 +1,228 @@
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, Button, StyleSheet, Alert, Image, Share } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { AdMobInterstitial, setTestDeviceIDAsync } from 'expo-ads-admob';
+import * as Font from 'expo-font';
+import { StatusBar } from 'expo-status-bar';
+
+// কনফিগারেশন
+const CONFIG = {
+  APP_NAME: "মিস্টার ক্যুয়াক - এআই ডাক্তার",
+  DOCTOR_NAME: "ডাঃ মারুফ (এআই)",
+  ADMOB: {
+    INTERSTITIAL_ID: "ca-app-pub-3940256099942544/1033173712", // টেস্ট আইডি
+    BANNER_ID: "ca-app-pub-3940256099942544/6300978111", // টেস্ট আইডি
+    MAX_ADS_PER_HOUR: 3
+  }
+};
+
+// AdMob সেটআপ
+let adCount = 0;
+let windowStart = Date.now();
+
+async function initAdMob() {
+  try {
+    await setTestDeviceIDAsync('EMULATOR');
+    AdMobInterstitial.setAdUnitID(CONFIG.ADMOB.INTERSTITIAL_ID);
+  } catch (e) {
+    console.log("AdMob error", e);
+  }
+}
+
+async function tryShowInterstitial() {
+  const now = Date.now();
+  if(now - windowStart >= 3600*1000) {
+    windowStart = now;
+    adCount = 0;
+  }
+  if(adCount >= CONFIG.ADMOB.MAX_ADS_PER_HOUR) return false;
+  
+  try {
+    adCount++;
+    await AdMobInterstitial.requestAdAsync({ servePersonalizedAds: false });
+    await AdMobInterstitial.showAdAsync();
+    return true;
+  } catch(e) {
+    console.log("Ad show error", e);
+    return false;
+  }
+}
+
+// হোম স্ক্রিন
+function HomeScreen({ navigation }) {
+  return (
+    <View style={styles.container}>
+      <Image source={require('./assets/quack_logo.png')} style={styles.logo} />
+      <Text style={styles.title}>{CONFIG.APP_NAME}</Text>
+      <Text style={styles.subtitle}>ডাক্তার: {CONFIG.DOCTOR_NAME}</Text>
+      <View style={{ marginTop: 20, width: '60%' }}>
+        <Button 
+          title="লক্ষণ শুরু করুন" 
+          onPress={() => navigation.navigate('Symptom')} 
+          color="#1976D2" 
+        />
+      </View>
+    </View>
+  );
+}
+
+// লক্ষণ স্ক্রিন
+function SymptomScreen({ navigation }) {
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('');
+  const [symptom, setSymptom] = useState('');
+
+  const quackResponses = {
+    fever: {
+      medicine: "প্যারাসিটামল ৫০০ মিগ্রা (৮ ঘন্টা পরপর)",
+      advice: "পর্যাপ্ত পানি পান করুন। ৩ দিনের বেশি জ্বর থাকলে ডাক্তার দেখান"
+    },
+    cough: {
+      medicine: "এন্টিহিস্টামিন (সেটিরিজিন ১০ মিগ্রা)",
+      advice: "গরম পানিতে ভাপ নিন, মধু-লেবু চা খান"
+    },
+    default: {
+      medicine: "সাধারণ ব্যথানাশক",
+      advice: "লক্ষণ পর্যবেক্ষণ করুন"
+    }
+  };
+
+  const analyze = async () => {
+    if (!name || !age || !symptom) {
+      Alert.alert('ত্রুটি!', 'নাম, বয়স ও লক্ষণ পূরণ করুন');
+      return;
+    }
+
+    await tryShowInterstitial();
+
+    let result = quackResponses.default;
+    if (symptom.includes('জ্বর')) result = quackResponses.fever;
+    if (symptom.includes('কাশি')) result = quackResponses.cough;
+
+    navigation.navigate('Prescription', { 
+      name, age, symptom,
+      medicine: result.medicine, 
+      advice: result.advice 
+    });
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.label}>রোগীর নাম</Text>
+      <TextInput value={name} onChangeText={setName} style={styles.input} placeholder="নাম লিখুন" />
+      
+      <Text style={styles.label}>বয়স</Text>
+      <TextInput value={age} onChangeText={setAge} style={styles.input} placeholder="বয়স লিখুন" keyboardType="numeric" />
+      
+      <Text style={styles.label}>লক্ষণ</Text>
+      <TextInput 
+        value={symptom} 
+        onChangeText={setSymptom} 
+        style={[styles.input, { height: 120 }]} 
+        placeholder="লক্ষণ বিস্তারিত লিখুন (যেমন: জ্বর, কাশি)" 
+        multiline 
+      />
+      
+      <Button title="ডায়াগনোসিস করুন" onPress={analyze} color="#4CAF50" />
+    </View>
+  );
+}
+
+// প্রেসক্রিপশন স্ক্রিন
+function PrescriptionScreen({ route }) {
+  const { name, age, symptom, medicine, advice } = route.params;
+  
+  const prescriptionText = `
+  রোগীর নাম: ${name}
+  বয়স: ${age}
+  
+  লক্ষণ: ${symptom}
+  
+  ওষুধ: ${medicine}
+  
+  পরামর্শ: ${advice}
+  
+  তারিখ: ${new Date().toLocaleDateString('bn-BD')}
+  প্রেসক্রাইব করেছেন: ${CONFIG.DOCTOR_NAME}
+  
+  ⚠️ সতর্কতা: এটি শুধুমাত্র প্রাথমিক পরামর্শ। জটিল লক্ষণের জন্য ডাক্তারের পরামর্শ নিন।
+  `.trim();
+
+  const onShare = async () => {
+    await Share.share({ message: prescriptionText });
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>প্রেসক্রিপশন</Text>
+      <Text style={styles.prescription}>{prescriptionText}</Text>
+      <Button title="শেয়ার করুন" onPress={onShare} color="#FF7043" />
+    </View>
+  );
+}
+
+// নেভিগেশন সেটআপ
+const Stack = createNativeStackNavigator();
+
+function MainStack() {
+  return (
+    <Stack.Navigator initialRouteName="Home">
+      <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'মিস্টার ক্যুয়াক' }} />
+      <Stack.Screen name="Symptom" component={SymptomScreen} options={{ title: 'লক্ষণ লিখুন' }} />
+      <Stack.Screen name="Prescription" component={PrescriptionScreen} options={{ title: 'প্রেসক্রিপশন' }} />
+    </Stack.Navigator>
+  );
+}
+
+// মেইন অ্যাপ কম্পোনেন্ট
+export default function App() {
+  const [fontLoaded, setFontLoaded] = useState(false);
+
+  useEffect(() => {
+    initAdMob();
+    loadFonts();
+  }, []);
+
+  const loadFonts = async () => {
+    await Font.loadAsync({
+      'SolaimanLipi': require('./assets/fonts/SolaimanLipi.ttf'),
+    });
+    setFontLoaded(true);
+  };
+
+  if (!fontLoaded) return null;
+
+  return (
+    <NavigationContainer>
+      <MainStack />
+      <StatusBar style="auto" />
+    </NavigationContainer>
+  );
+}
+
+// স্টাইলস
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 20, backgroundColor: '#E3F2FD' },
+  logo: { width: 100, height: 100, marginBottom: 20, alignSelf: 'center' },
+  title: { fontSize: 22, fontWeight: '700', textAlign: 'center', fontFamily: 'SolaimanLipi' },
+  subtitle: { fontSize: 14, color: '#444', marginTop: 6, textAlign: 'center', fontFamily: 'SolaimanLipi' },
+  label: { fontSize: 16, marginBottom: 5, fontFamily: 'SolaimanLipi' },
+  input: { 
+    borderWidth: 1, 
+    borderColor: '#90CAF9', 
+    padding: 12, 
+    marginBottom: 15, 
+    borderRadius: 8, 
+    backgroundColor: 'white',
+    fontFamily: 'SolaimanLipi' 
+  },
+  prescription: { 
+    marginBottom: 20, 
+    lineHeight: 24, 
+    fontFamily: 'SolaimanLipi',
+    backgroundColor: 'white', 
+    padding: 15, 
+    borderRadius: 8 
+  }
+});
