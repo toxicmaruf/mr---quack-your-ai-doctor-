@@ -2,7 +2,8 @@
    ├─ https://i.postimg.cc/Kc5pk8DC/file-000000009e3461f7853c563152ae688b.png
    ├─ https://i.postimg.cc/T1j4xrh9/file-000000007ab461f49617e78cad1397e5.png
    ├─ /fonts
-        /Expo.ttf
+   │     ├─ Roboto-Regular.ttf
+         └─ Roboto-Bold.ttf  
 
    ├─ /sounds
    │    ├─ notification.mp3
